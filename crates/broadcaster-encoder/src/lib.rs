@@ -188,7 +188,9 @@ pub fn create_video_encoder(config: VideoEncoderConfig) -> EncoderResult<Box<dyn
 /// Create a video encoder (stub for non-Windows platforms).
 #[cfg(not(windows))]
 pub fn create_video_encoder(_config: VideoEncoderConfig) -> EncoderResult<Box<dyn VideoEncoder>> {
-    Err(EncoderError::NotSupported("Video encoding is only supported on Windows".into()))
+    Err(EncoderError::NotSupported(
+        "Video encoding is only supported on Windows".into(),
+    ))
 }
 
 /// Create an audio encoder.
@@ -201,5 +203,7 @@ pub fn create_audio_encoder(config: AudioEncoderConfig) -> EncoderResult<Box<dyn
 /// Create an audio encoder (stub for non-Windows platforms).
 #[cfg(not(windows))]
 pub fn create_audio_encoder(_config: AudioEncoderConfig) -> EncoderResult<Box<dyn AudioEncoder>> {
-    Err(EncoderError::NotSupported("Audio encoding is only supported on Windows".into()))
+    Err(EncoderError::NotSupported(
+        "Audio encoding is only supported on Windows".into(),
+    ))
 }

@@ -26,9 +26,6 @@ pub fn create_engine(command_rx: Receiver<EngineCommand>, event_tx: Sender<Engin
 
 /// Stub for non-Windows platforms.
 #[cfg(not(windows))]
-pub fn create_engine(
-    _command_rx: Receiver<EngineCommand>,
-    _event_tx: Sender<EngineEvent>,
-) -> ! {
+pub fn create_engine(_command_rx: Receiver<EngineCommand>, _event_tx: Sender<EngineEvent>) -> ! {
     panic!("Broadcaster engine is only supported on Windows")
 }
