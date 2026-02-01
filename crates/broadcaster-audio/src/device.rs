@@ -1,12 +1,14 @@
 //! Audio device enumeration.
 
 use tracing::{debug, instrument};
+use windows::core::PCWSTR;
 use windows::Win32::Media::Audio::{
     eAll, eCapture, eRender, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
     DEVICE_STATE_ACTIVE,
 };
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
-use windows::core::PCWSTR;
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
+};
 
 use broadcaster_ipc::{AudioDevice, AudioDeviceType};
 
@@ -54,9 +56,8 @@ fn enumerate_devices_by_type(device_type: AudioDeviceType) -> AudioResult<Vec<Au
         AudioDeviceType::Output => eRender,
     };
 
-    let enumerator: IMMDeviceEnumerator = unsafe {
-        CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?
-    };
+    let enumerator: IMMDeviceEnumerator =
+        unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)? };
 
     // Get default device ID for this type
     let default_id = unsafe {
@@ -114,7 +115,8 @@ fn get_device_name(device: &IMMDevice) -> AudioResult<String> {
     use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
 
     unsafe {
-        let store: IPropertyStore = device.OpenPropertyStore(windows::Win32::System::Com::STGM_READ)?;
+        let store: IPropertyStore =
+            device.OpenPropertyStore(windows::Win32::System::Com::STGM_READ)?;
 
         // PKEY_Device_FriendlyName
         let key = windows::Win32::UI::Shell::PropertiesSystem::PROPERTYKEY {
@@ -140,9 +142,8 @@ fn get_device_name(device: &IMMDevice) -> AudioResult<String> {
 pub fn find_device_by_id(id: &str) -> AudioResult<IMMDevice> {
     ensure_com_initialized()?;
 
-    let enumerator: IMMDeviceEnumerator = unsafe {
-        CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?
-    };
+    let enumerator: IMMDeviceEnumerator =
+        unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)? };
 
     let id_wide: Vec<u16> = id.encode_utf16().chain(std::iter::once(0)).collect();
 
@@ -162,9 +163,8 @@ pub fn get_default_device(device_type: AudioDeviceType) -> AudioResult<IMMDevice
         AudioDeviceType::Output => eRender,
     };
 
-    let enumerator: IMMDeviceEnumerator = unsafe {
-        CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?
-    };
+    let enumerator: IMMDeviceEnumerator =
+        unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)? };
 
     unsafe {
         enumerator

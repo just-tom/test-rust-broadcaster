@@ -9,8 +9,8 @@ use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use tracing::{debug, error, info, instrument, warn};
 
-use broadcaster_capture::{enumerate_monitors, enumerate_windows};
 use broadcaster_audio::enumerate_audio_devices;
+use broadcaster_capture::{enumerate_monitors, enumerate_windows};
 use broadcaster_ipc::{
     AudioDevice, CaptureSource, EngineCommand, EngineEvent, EngineState, ShutdownPhase,
     StartupPhase, StopReason, StreamConfig, StreamMetrics,
@@ -115,7 +115,10 @@ impl Engine {
         });
 
         // Try to initialize all resources
-        match self.resource_manager.initialize(&config, StartupPhase::StartTransmission) {
+        match self
+            .resource_manager
+            .initialize(&config, StartupPhase::StartTransmission)
+        {
             Ok(()) => {
                 // Start metrics collection
                 self.metrics = Arc::new(MetricsCollector::new(60.0, config.video_bitrate_kbps));
@@ -255,8 +258,8 @@ impl Engine {
     fn send_state(&self) {
         let state = self.state.read().clone();
         self.send_event(EngineEvent::StateChanged {
-            previous: state.clone(),
-            current: state,
+            previous: Box::new(state.clone()),
+            current: Box::new(state),
         });
     }
 
@@ -287,8 +290,8 @@ impl Engine {
         );
 
         self.send_event(EngineEvent::StateChanged {
-            previous,
-            current: new_state,
+            previous: Box::new(previous),
+            current: Box::new(new_state),
         });
     }
 

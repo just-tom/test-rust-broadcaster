@@ -9,8 +9,8 @@ use tracing::{debug, info, instrument, warn};
 use broadcaster_audio::{AudioCaptureSession, AudioMixer, MixedAudioChunk};
 use broadcaster_capture::{CaptureSession, CaptureSource, CapturedFrame};
 use broadcaster_encoder::{
-    create_audio_encoder, create_video_encoder, AudioEncoder, AudioEncoderConfig,
-    VideoEncoder, VideoEncoderConfig,
+    create_audio_encoder, create_video_encoder, AudioEncoder, AudioEncoderConfig, VideoEncoder,
+    VideoEncoderConfig,
 };
 use broadcaster_ipc::{StartupPhase, StreamConfig};
 use broadcaster_transport::RtmpClient;

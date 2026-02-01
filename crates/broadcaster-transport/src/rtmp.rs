@@ -8,15 +8,15 @@ use bytes::Bytes;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use rml_rtmp::handshake::{Handshake, HandshakeProcessResult, PeerType};
-use rml_rtmp::sessions::{ClientSession, ClientSessionConfig, ClientSessionEvent, ClientSessionResult};
+use rml_rtmp::sessions::{
+    ClientSession, ClientSessionConfig, ClientSessionEvent, ClientSessionResult,
+};
 use rml_rtmp::time::RtmpTimestamp;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, info, instrument, trace, warn};
 use url::Url;
-
-use broadcaster_ipc::StreamMetrics;
 
 use crate::connection::{ConnectionState, ReconnectPolicy};
 use crate::error::TransportError;
@@ -87,7 +87,7 @@ impl RtmpClient {
         *self.state.write() = ConnectionState::Connecting;
 
         // Create tokio runtime for async network operations
-        let runtime = Runtime::new().map_err(|e| TransportError::Io(e))?;
+        let runtime = Runtime::new().map_err(TransportError::Io)?;
 
         // Create packet channel
         let (sender, receiver): (Sender<RtmpPacket>, Receiver<RtmpPacket>) =
@@ -188,6 +188,7 @@ pub struct TransportStatistics {
     pub packets_dropped: u64,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_rtmp_connection(
     url: String,
     stream_key: String,
@@ -261,6 +262,7 @@ async fn run_rtmp_connection(
 }
 
 /// RTMP connection with session state.
+#[allow(dead_code)]
 struct RtmpConnection {
     /// TCP stream to the RTMP server.
     stream: TcpStream,
@@ -306,7 +308,9 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
     let mut handshake = Handshake::new(PeerType::Client);
 
     // Generate and send C0+C1
-    let p0_p1 = handshake.generate_outbound_p0_and_p1();
+    let p0_p1 = handshake
+        .generate_outbound_p0_and_p1()
+        .map_err(|e| TransportError::Connection(format!("Handshake generation failed: {:?}", e)))?;
     stream
         .write_all(&p0_p1)
         .await
@@ -332,10 +336,9 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
         match handshake.process_bytes(&handshake_buf[..n]) {
             Ok(HandshakeProcessResult::InProgress { response_bytes }) => {
                 if !response_bytes.is_empty() {
-                    stream
-                        .write_all(&response_bytes)
-                        .await
-                        .map_err(|e| TransportError::Connection(format!("Handshake write failed: {}", e)))?;
+                    stream.write_all(&response_bytes).await.map_err(|e| {
+                        TransportError::Connection(format!("Handshake write failed: {}", e))
+                    })?;
                 }
             }
             Ok(HandshakeProcessResult::Completed {
@@ -343,16 +346,18 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
                 remaining_bytes,
             }) => {
                 if !response_bytes.is_empty() {
-                    stream
-                        .write_all(&response_bytes)
-                        .await
-                        .map_err(|e| TransportError::Connection(format!("Handshake write failed: {}", e)))?;
+                    stream.write_all(&response_bytes).await.map_err(|e| {
+                        TransportError::Connection(format!("Handshake write failed: {}", e))
+                    })?;
                 }
                 leftover_bytes = remaining_bytes;
                 handshake_complete = true;
             }
             Err(e) => {
-                return Err(TransportError::Connection(format!("Handshake failed: {:?}", e)));
+                return Err(TransportError::Connection(format!(
+                    "Handshake failed: {:?}",
+                    e
+                )));
             }
         }
     }
@@ -370,7 +375,7 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
             stream
                 .write_all(&packet.bytes)
                 .await
-                .map_err(|e| TransportError::Io(e))?;
+                .map_err(TransportError::Io)?;
         }
     }
 
@@ -390,7 +395,7 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
         stream
             .write_all(&packet.bytes)
             .await
-            .map_err(|e| TransportError::Io(e))?;
+            .map_err(TransportError::Io)?;
     }
 
     // Wait for connection acceptance
@@ -401,7 +406,7 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
         // Timeout after ~5 seconds
         tokio::select! {
             result = stream.read(&mut read_buf) => {
-                let n = result.map_err(|e| TransportError::Io(e))?;
+                let n = result.map_err(TransportError::Io)?;
                 if n == 0 {
                     return Err(TransportError::Connection("Connection closed".to_string()));
                 }
@@ -413,7 +418,7 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
                 for result in results {
                     match result {
                         ClientSessionResult::OutboundResponse(packet) => {
-                            stream.write_all(&packet.bytes).await.map_err(|e| TransportError::Io(e))?;
+                            stream.write_all(&packet.bytes).await.map_err(TransportError::Io)?;
                         }
                         ClientSessionResult::RaisedEvent(event) => {
                             match event {
@@ -454,14 +459,17 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
     // Request publishing
     debug!(stream_key = %stream_key, "Requesting publish");
     let publish_results = session
-        .request_publishing(stream_key.to_string(), rml_rtmp::sessions::PublishRequestType::Live)
+        .request_publishing(
+            stream_key.to_string(),
+            rml_rtmp::sessions::PublishRequestType::Live,
+        )
         .map_err(|e| TransportError::Connection(format!("Publish request failed: {:?}", e)))?;
 
     if let ClientSessionResult::OutboundResponse(packet) = publish_results {
         stream
             .write_all(&packet.bytes)
             .await
-            .map_err(|e| TransportError::Io(e))?;
+            .map_err(TransportError::Io)?;
     }
 
     // Wait for publish acceptance
@@ -469,7 +477,7 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
     for _ in 0..30 {
         tokio::select! {
             result = stream.read(&mut read_buf) => {
-                let n = result.map_err(|e| TransportError::Io(e))?;
+                let n = result.map_err(TransportError::Io)?;
                 if n == 0 {
                     return Err(TransportError::Connection("Connection closed".to_string()));
                 }
@@ -481,14 +489,15 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
                 for result in results {
                     match result {
                         ClientSessionResult::OutboundResponse(packet) => {
-                            stream.write_all(&packet.bytes).await.map_err(|e| TransportError::Io(e))?;
+                            stream.write_all(&packet.bytes).await.map_err(TransportError::Io)?;
                         }
-                        ClientSessionResult::RaisedEvent(event) => {
-                            if let ClientSessionEvent::PublishRequestAccepted = event {
-                                debug!("Publish request accepted");
-                                publishing = true;
-                            }
+                        ClientSessionResult::RaisedEvent(
+                            ClientSessionEvent::PublishRequestAccepted,
+                        ) => {
+                            debug!("Publish request accepted");
+                            publishing = true;
                         }
+                        ClientSessionResult::RaisedEvent(_) => {}
                         _ => {}
                     }
                 }
@@ -520,10 +529,7 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
     })
 }
 
-async fn send_packet(
-    connection: &mut RtmpConnection,
-    packet: &RtmpPacket,
-) -> TransportResult<()> {
+async fn send_packet(connection: &mut RtmpConnection, packet: &RtmpPacket) -> TransportResult<()> {
     let timestamp = RtmpTimestamp::new(packet.timestamp_ms);
 
     // Publish the packet through the session
@@ -541,8 +547,8 @@ async fn send_packet(
         )
     };
 
-    let session_result = result
-        .map_err(|e| TransportError::Send(format!("Failed to publish data: {:?}", e)))?;
+    let session_result =
+        result.map_err(|e| TransportError::Send(format!("Failed to publish data: {:?}", e)))?;
 
     // Send the outbound packet
     if let ClientSessionResult::OutboundResponse(rtmp_packet) = session_result {
@@ -550,7 +556,7 @@ async fn send_packet(
             .stream
             .write_all(&rtmp_packet.bytes)
             .await
-            .map_err(|e| TransportError::Io(e))?;
+            .map_err(TransportError::Io)?;
     }
 
     Ok(())

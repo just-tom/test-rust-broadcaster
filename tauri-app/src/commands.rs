@@ -1,7 +1,5 @@
 //! Tauri command handlers.
 
-use std::time::Duration;
-
 use tauri::State;
 use tracing::{debug, instrument};
 

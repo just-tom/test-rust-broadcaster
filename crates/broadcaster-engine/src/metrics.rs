@@ -1,11 +1,9 @@
 //! Metrics collection and reporting.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use parking_lot::RwLock;
-use tracing::debug;
 
 use broadcaster_ipc::{StreamMetrics, WarningType};
 
@@ -169,10 +167,8 @@ impl MetricsCollector {
     /// Update last report time for FPS calculation.
     pub fn mark_reported(&self) {
         *self.last_report_time.write() = Instant::now();
-        self.last_frame_count.store(
-            self.frame_count.load(Ordering::Relaxed),
-            Ordering::Relaxed,
-        );
+        self.last_frame_count
+            .store(self.frame_count.load(Ordering::Relaxed), Ordering::Relaxed);
     }
 }
 

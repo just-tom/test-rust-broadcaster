@@ -4,15 +4,22 @@
 //! using the Windows Graphics Capture API.
 
 mod error;
+#[cfg(windows)]
 mod frame;
+#[cfg(windows)]
 mod wgc;
 
 pub use error::CaptureError;
-pub use frame::{CapturedFrame, CaptureTimestamp};
+#[cfg(windows)]
+pub use frame::{CaptureTimestamp, CapturedFrame};
+#[cfg(windows)]
 pub use wgc::monitor::enumerate_monitors;
+#[cfg(windows)]
 pub use wgc::session::CaptureSession;
+#[cfg(windows)]
 pub use wgc::window::enumerate_windows;
 
+#[cfg(windows)]
 use crossbeam_channel::Receiver;
 
 /// Channel capacity for captured frames.
@@ -22,6 +29,7 @@ pub const FRAME_CHANNEL_CAPACITY: usize = 3;
 pub type CaptureResult<T> = Result<T, CaptureError>;
 
 /// Trait for capture sources.
+#[cfg(windows)]
 pub trait CaptureSource: Send + Sync {
     /// Start capturing frames.
     fn start(&mut self) -> CaptureResult<Receiver<CapturedFrame>>;

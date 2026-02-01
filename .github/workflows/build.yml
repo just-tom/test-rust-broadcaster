@@ -39,7 +39,15 @@ jobs:
           echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
           echo "C:\vcpkg" >> $env:GITHUB_PATH
 
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        id: vcpkg-cache
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-x64-windows-static-x264-fdk-aac-v1
+
       - name: Install native dependencies
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         run: |
           C:\vcpkg\vcpkg install x264:x64-windows-static fdk-aac:x64-windows-static
         env:

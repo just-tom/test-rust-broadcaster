@@ -3,15 +3,21 @@
 //! This crate provides functionality to capture audio from microphones
 //! and system audio (loopback) using WASAPI.
 
+#[cfg(windows)]
 mod capture;
+#[cfg(windows)]
 mod device;
 mod error;
+#[cfg(windows)]
 mod mixer;
 
+#[cfg(windows)]
 pub use capture::{AudioCaptureSession, AudioChunk};
+#[cfg(windows)]
 pub use device::{enumerate_audio_devices, find_device_by_id};
 pub use error::AudioError;
-pub use mixer::{AudioMixer, MixerInput};
+#[cfg(windows)]
+pub use mixer::{AudioMixer, MixedAudioChunk, MixerInput};
 
 /// Channel capacity for audio chunks.
 pub const AUDIO_CHANNEL_CAPACITY: usize = 8;

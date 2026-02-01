@@ -11,10 +11,10 @@ pub enum EngineEvent {
     /// Engine state has changed.
     StateChanged {
         /// Previous state.
-        previous: EngineState,
+        previous: Box<EngineState>,
 
         /// Current state.
-        current: EngineState,
+        current: Box<EngineState>,
     },
 
     /// Updated stream metrics.

@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use bytes::Bytes;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
-use tracing::{debug, info, trace, warn, instrument};
+use tracing::{debug, info, instrument, trace, warn};
 use windows::Win32::Media::Audio::{
     IAudioCaptureClient, IAudioClient, IMMDevice, AUDCLNT_SHAREMODE_SHARED,
     AUDCLNT_STREAMFLAGS_LOOPBACK,
@@ -182,14 +182,10 @@ fn capture_thread(
     };
 
     // Activate audio client
-    let audio_client: IAudioClient = unsafe {
-        device.Activate(CLSCTX_ALL, None)?
-    };
+    let audio_client: IAudioClient = unsafe { device.Activate(CLSCTX_ALL, None)? };
 
     // Get the mix format
-    let mix_format = unsafe {
-        audio_client.GetMixFormat()?
-    };
+    let mix_format = unsafe { audio_client.GetMixFormat()? };
 
     // Initialize the audio client
     let stream_flags = if is_loopback {
@@ -210,9 +206,7 @@ fn capture_thread(
     }
 
     // Get capture client
-    let capture_client: IAudioCaptureClient = unsafe {
-        audio_client.GetService()?
-    };
+    let capture_client: IAudioCaptureClient = unsafe { audio_client.GetService()? };
 
     // Start the audio client
     unsafe {
@@ -229,7 +223,10 @@ fn capture_thread(
         // Get available frames
         let mut packet_length = 0u32;
         unsafe {
-            if capture_client.GetNextPacketSize(&mut packet_length).is_err() {
+            if capture_client
+                .GetNextPacketSize(&mut packet_length)
+                .is_err()
+            {
                 break;
             }
         }
@@ -256,9 +253,7 @@ fn capture_thread(
         if num_frames > 0 {
             // Convert to f32 and create chunk
             let sample_count = num_frames as usize * CHANNELS as usize;
-            let data = unsafe {
-                std::slice::from_raw_parts(data_ptr as *const f32, sample_count)
-            };
+            let data = unsafe { std::slice::from_raw_parts(data_ptr as *const f32, sample_count) };
 
             let bytes = Bytes::copy_from_slice(unsafe {
                 std::slice::from_raw_parts(

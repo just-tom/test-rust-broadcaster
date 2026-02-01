@@ -3,14 +3,20 @@
 //! This crate provides hardware-accelerated video encoding via NVENC
 //! with x264 software fallback, plus AAC audio encoding.
 
+#[cfg(windows)]
 mod aac;
 mod error;
+#[cfg(windows)]
 mod nvenc;
+#[cfg(windows)]
 mod x264;
 
+#[cfg(windows)]
 pub use aac::AacEncoder;
 pub use error::EncoderError;
+#[cfg(windows)]
 pub use nvenc::NvencEncoder;
+#[cfg(windows)]
 pub use x264::X264Encoder;
 
 use bytes::Bytes;
@@ -132,7 +138,8 @@ pub struct EncodedAudioPacket {
 /// Trait for video encoders.
 pub trait VideoEncoder: Send {
     /// Encode a frame in NV12 format.
-    fn encode(&mut self, frame: &[u8], pts_100ns: u64) -> EncoderResult<Option<EncodedVideoPacket>>;
+    fn encode(&mut self, frame: &[u8], pts_100ns: u64)
+        -> EncoderResult<Option<EncodedVideoPacket>>;
 
     /// Flush any remaining frames.
     fn flush(&mut self) -> EncoderResult<Vec<EncodedVideoPacket>>;
@@ -147,7 +154,11 @@ pub trait VideoEncoder: Send {
 /// Trait for audio encoders.
 pub trait AudioEncoder: Send {
     /// Encode audio samples.
-    fn encode(&mut self, samples: &[f32], pts_100ns: u64) -> EncoderResult<Option<EncodedAudioPacket>>;
+    fn encode(
+        &mut self,
+        samples: &[f32],
+        pts_100ns: u64,
+    ) -> EncoderResult<Option<EncodedAudioPacket>>;
 
     /// Flush any remaining samples.
     fn flush(&mut self) -> EncoderResult<Vec<EncodedAudioPacket>>;
@@ -157,6 +168,7 @@ pub trait AudioEncoder: Send {
 }
 
 /// Create a video encoder, preferring NVENC with x264 fallback.
+#[cfg(windows)]
 pub fn create_video_encoder(config: VideoEncoderConfig) -> EncoderResult<Box<dyn VideoEncoder>> {
     // Try NVENC first
     match NvencEncoder::new(config.clone()) {
@@ -173,8 +185,21 @@ pub fn create_video_encoder(config: VideoEncoderConfig) -> EncoderResult<Box<dyn
     }
 }
 
+/// Create a video encoder (stub for non-Windows platforms).
+#[cfg(not(windows))]
+pub fn create_video_encoder(_config: VideoEncoderConfig) -> EncoderResult<Box<dyn VideoEncoder>> {
+    Err(EncoderError::NotSupported("Video encoding is only supported on Windows".into()))
+}
+
 /// Create an audio encoder.
+#[cfg(windows)]
 pub fn create_audio_encoder(config: AudioEncoderConfig) -> EncoderResult<Box<dyn AudioEncoder>> {
     let encoder = AacEncoder::new(config)?;
     Ok(Box::new(encoder))
+}
+
+/// Create an audio encoder (stub for non-Windows platforms).
+#[cfg(not(windows))]
+pub fn create_audio_encoder(_config: AudioEncoderConfig) -> EncoderResult<Box<dyn AudioEncoder>> {
+    Err(EncoderError::NotSupported("Audio encoding is only supported on Windows".into()))
 }

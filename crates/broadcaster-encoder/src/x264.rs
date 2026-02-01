@@ -61,10 +61,9 @@ impl X264Encoder {
             .map_err(|e| EncoderError::Initialization(format!("x264 setup failed: {}", e)))?;
 
         // Get SPS/PPS headers
-        let headers = encoder.headers().map_or_else(
-            |_| Bytes::new(),
-            |h| Bytes::from(h.entirety().to_vec()),
-        );
+        let headers = encoder
+            .headers()
+            .map_or_else(|_| Bytes::new(), |h| Bytes::from(h.entirety().to_vec()));
 
         debug!(header_size = headers.len(), "x264 encoder initialized");
 
@@ -76,17 +75,23 @@ impl X264Encoder {
             headers,
         })
     }
-
 }
 
 impl VideoEncoder for X264Encoder {
     #[instrument(name = "x264_encode", skip(self, frame))]
-    fn encode(&mut self, frame: &[u8], pts_100ns: u64) -> EncoderResult<Option<EncodedVideoPacket>> {
+    fn encode(
+        &mut self,
+        frame: &[u8],
+        pts_100ns: u64,
+    ) -> EncoderResult<Option<EncodedVideoPacket>> {
         let expected_size = (self.config.width * self.config.height * 3 / 2) as usize;
         if frame.len() != expected_size {
             return Err(EncoderError::InvalidInput(format!(
                 "Expected {} bytes ({}x{} NV12), got {}",
-                expected_size, self.config.width, self.config.height, frame.len()
+                expected_size,
+                self.config.width,
+                self.config.height,
+                frame.len()
             )));
         }
 
@@ -191,7 +196,11 @@ impl VideoEncoder for X264Encoder {
                             pts_100ns,
                             dts_100ns,
                             is_keyframe,
-                            frame_type: if is_keyframe { FrameType::I } else { FrameType::P },
+                            frame_type: if is_keyframe {
+                                FrameType::I
+                            } else {
+                                FrameType::P
+                            },
                         });
                     }
                 }

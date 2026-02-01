@@ -6,9 +6,10 @@ use std::time::Duration;
 use crate::{BASE_RECONNECT_DELAY_MS, MAX_RECONNECT_ATTEMPTS};
 
 /// Connection state for the RTMP client.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub enum ConnectionState {
     /// Not connected.
+    #[default]
     Disconnected,
 
     /// Connecting to server.
@@ -46,15 +47,11 @@ impl ConnectionState {
             Self::Disconnected => "Disconnected".to_string(),
             Self::Connecting => "Connecting...".to_string(),
             Self::Connected => "Connected".to_string(),
-            Self::Reconnecting { attempt } => format!("Reconnecting ({}/{})", attempt, MAX_RECONNECT_ATTEMPTS),
+            Self::Reconnecting { attempt } => {
+                format!("Reconnecting ({}/{})", attempt, MAX_RECONNECT_ATTEMPTS)
+            }
             Self::Failed { reason } => format!("Failed: {}", reason),
         }
-    }
-}
-
-impl Default for ConnectionState {
-    fn default() -> Self {
-        Self::Disconnected
     }
 }
 

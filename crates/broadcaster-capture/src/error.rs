@@ -9,6 +9,7 @@ pub enum CaptureError {
     #[error("Windows API error: {message}")]
     WindowsApi {
         message: String,
+        #[cfg(windows)]
         #[source]
         source: Option<windows::core::Error>,
     },
@@ -46,6 +47,7 @@ pub enum CaptureError {
     ChannelDisconnected,
 }
 
+#[cfg(windows)]
 impl From<windows::core::Error> for CaptureError {
     fn from(err: windows::core::Error) -> Self {
         Self::WindowsApi {

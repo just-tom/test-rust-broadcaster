@@ -8,7 +8,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
-use tracing::{debug, info, trace, warn, instrument};
+use tracing::{debug, info, instrument, trace, warn};
 
 use crate::capture::AudioChunk;
 use crate::error::AudioError;

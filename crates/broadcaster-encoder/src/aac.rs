@@ -145,7 +145,8 @@ impl AudioEncoder for AacEncoder {
         if !self.sample_buffer.is_empty() {
             // Pad with silence to reach a full frame
             let padding_needed = self.samples_per_frame - self.sample_buffer.len();
-            self.sample_buffer.extend(std::iter::repeat(0.0f32).take(padding_needed));
+            self.sample_buffer
+                .extend(std::iter::repeat(0.0f32).take(padding_needed));
 
             let pcm_i16 = Self::f32_to_i16(&self.sample_buffer);
 
@@ -153,7 +154,8 @@ impl AudioEncoder for AacEncoder {
                 if encode_info.output_size > 0 {
                     let aac_data = self.output_buffer[..encode_info.output_size].to_vec();
                     // Use frame count for final PTS calculation
-                    let pts_100ns = (self.frame_count * 1024 * 10_000_000) / self.config.sample_rate as u64;
+                    let pts_100ns =
+                        (self.frame_count * 1024 * 10_000_000) / self.config.sample_rate as u64;
                     packets.push(EncodedAudioPacket {
                         data: Bytes::from(aac_data),
                         pts_100ns,

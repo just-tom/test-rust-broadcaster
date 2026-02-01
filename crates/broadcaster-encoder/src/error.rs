@@ -44,4 +44,8 @@ pub enum EncoderError {
     /// Encoder not initialized.
     #[error("Encoder not initialized")]
     NotInitialized,
+
+    /// Feature not supported on this platform.
+    #[error("Not supported: {0}")]
+    NotSupported(String),
 }

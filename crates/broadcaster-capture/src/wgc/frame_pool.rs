@@ -115,8 +115,7 @@ impl FramePoolManager {
 
         // Convert to NV12 and send
         let data = self.convert_to_nv12(&surface)?;
-        let captured_frame =
-            CapturedFrame::new(data, self.width, self.height, timestamp, sequence);
+        let captured_frame = CapturedFrame::new(data, self.width, self.height, timestamp, sequence);
 
         // Try to send, drop if channel is full (backpressure)
         match self.frame_sender.try_send(captured_frame) {
@@ -161,7 +160,8 @@ impl FramePoolManager {
         // Map the staging texture for CPU read
         let mapped = unsafe {
             let mut mapped = std::mem::zeroed();
-            self.context.Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))?;
+            self.context
+                .Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))?;
             mapped
         };
 

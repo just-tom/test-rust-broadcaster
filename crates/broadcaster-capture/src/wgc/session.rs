@@ -112,7 +112,9 @@ impl CaptureSource for CaptureSession {
         )?;
 
         // Create capture session
-        let session = frame_pool_manager.frame_pool().CreateCaptureSession(&item)?;
+        let session = frame_pool_manager
+            .frame_pool()
+            .CreateCaptureSession(&item)?;
 
         // Disable cursor capture for cleaner output
         if let Ok(session2) = session.cast::<windows::Graphics::Capture::IGraphicsCaptureSession2>()

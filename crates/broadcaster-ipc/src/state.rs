@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::types::{StreamConfig, StreamMetrics};
 
 /// The current state of the broadcast engine.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub enum EngineState {
     /// Engine is idle, not streaming.
+    #[default]
     Idle,
 
     /// Engine is starting up.
@@ -42,12 +43,6 @@ pub enum EngineState {
         /// Whether recovery is possible.
         recoverable: bool,
     },
-}
-
-impl Default for EngineState {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 impl EngineState {

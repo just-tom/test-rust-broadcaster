@@ -12,10 +12,8 @@ use crate::{
 #[cfg(all(windows, feature = "nvenc"))]
 mod nvenc_impl {
     use super::*;
-    use nvidia_video_codec_sdk::safe::encoder::{
-        Buffer, Encoder, Session,
-    };
     use nvidia_video_codec_sdk::safe::api::ENCODE_API;
+    use nvidia_video_codec_sdk::safe::encoder::{Buffer, Encoder, Session};
     use std::sync::OnceLock;
 
     static NVENC_AVAILABLE: OnceLock<bool> = OnceLock::new();
@@ -114,7 +112,11 @@ impl NvencEncoder {
 
 impl VideoEncoder for NvencEncoder {
     #[instrument(name = "nvenc_encode", skip(self, frame))]
-    fn encode(&mut self, frame: &[u8], pts_100ns: u64) -> EncoderResult<Option<EncodedVideoPacket>> {
+    fn encode(
+        &mut self,
+        frame: &[u8],
+        pts_100ns: u64,
+    ) -> EncoderResult<Option<EncodedVideoPacket>> {
         if !self.initialized {
             return Err(EncoderError::NotInitialized);
         }

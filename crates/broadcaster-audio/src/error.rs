@@ -9,6 +9,7 @@ pub enum AudioError {
     #[error("Windows API error: {message}")]
     WindowsApi {
         message: String,
+        #[cfg(windows)]
         #[source]
         source: Option<windows::core::Error>,
     },
@@ -42,6 +43,7 @@ pub enum AudioError {
     MixerError(String),
 }
 
+#[cfg(windows)]
 impl From<windows::core::Error> for AudioError {
     fn from(err: windows::core::Error) -> Self {
         Self::WindowsApi {
