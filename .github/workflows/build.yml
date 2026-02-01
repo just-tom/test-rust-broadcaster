@@ -53,6 +53,9 @@ jobs:
         env:
           VCPKG_DEFAULT_TRIPLET: x64-windows-static
 
+      - name: Install pkg-config
+        run: choco install pkgconfiglite -y
+
       - name: Configure pkg-config for Rust
         run: |
           echo "PKG_CONFIG_PATH=C:\vcpkg\installed\x64-windows-static\lib\pkgconfig" >> $env:GITHUB_ENV
