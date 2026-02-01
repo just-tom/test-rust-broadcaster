@@ -11,8 +11,7 @@ use parking_lot::RwLock;
 use tracing::{debug, info, instrument, trace, warn};
 
 use crate::capture::AudioChunk;
-use crate::error::AudioError;
-use crate::{AudioResult, AUDIO_CHANNEL_CAPACITY, CHANNELS, SAMPLES_PER_CHUNK, SAMPLE_RATE};
+use crate::{AudioResult, AUDIO_CHANNEL_CAPACITY, CHANNELS, SAMPLES_PER_CHUNK};
 
 /// Input source for the mixer.
 pub struct MixerInput {
@@ -185,6 +184,7 @@ impl Drop for AudioMixer {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn mix_thread(
     mic_input: Option<Receiver<AudioChunk>>,
     system_input: Option<Receiver<AudioChunk>>,

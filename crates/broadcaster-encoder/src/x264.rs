@@ -10,11 +10,13 @@ use crate::{
 
 /// x264 software encoder wrapper.
 pub struct X264Encoder {
-    encoder: x264::Encoder,
+    encoder: Option<x264::Encoder>,
     config: VideoEncoderConfig,
     frame_count: u64,
+    #[allow(dead_code)]
     keyframe_interval: u64,
     /// Cached SPS/PPS header data.
+    #[allow(dead_code)]
     headers: Bytes,
 }
 
@@ -33,9 +35,10 @@ impl X264Encoder {
         let keyframe_interval = (config.fps * config.keyframe_interval_secs) as u64;
 
         // Build x264 encoder using the Setup builder
+        // Use None for tune to use default, enable zero_latency flag
         let mut setup = x264::Setup::preset(
             x264::Preset::Veryfast,
-            x264::Tune::Zerolatency,
+            x264::Tune::None,
             false, // fast_decode
             true,  // zero_latency
         )
@@ -52,13 +55,13 @@ impl X264Encoder {
         };
 
         // Build encoder with NV12 colorspace
-        let encoder = setup
+        let mut encoder = setup
             .build(
                 x264::Colorspace::NV12,
                 config.width as i32,
                 config.height as i32,
             )
-            .map_err(|e| EncoderError::Initialization(format!("x264 setup failed: {}", e)))?;
+            .map_err(|e| EncoderError::Initialization(format!("x264 setup failed: {:?}", e)))?;
 
         // Get SPS/PPS headers
         let headers = encoder
@@ -68,7 +71,7 @@ impl X264Encoder {
         debug!(header_size = headers.len(), "x264 encoder initialized");
 
         Ok(Self {
-            encoder,
+            encoder: Some(encoder),
             config,
             frame_count: 0,
             keyframe_interval,
@@ -130,10 +133,12 @@ impl VideoEncoder for X264Encoder {
         let pts = (pts_100ns * self.config.fps as u64) / 10_000_000;
 
         // Encode the frame
-        let (data, picture) = self
-            .encoder
+        let encoder = self.encoder.as_mut().ok_or_else(|| {
+            EncoderError::Encoding("Encoder has been flushed".to_string())
+        })?;
+        let (data, picture) = encoder
             .encode(pts as i64, image)
-            .map_err(|e| EncoderError::Encoding(format!("x264 encode failed: {}", e)))?;
+            .map_err(|e| EncoderError::Encoding(format!("x264 encode failed: {:?}", e)))?;
 
         // If no data was produced, the frame is being buffered
         if data.len() == 0 {
@@ -177,11 +182,17 @@ impl VideoEncoder for X264Encoder {
         debug!("Flushing x264 encoder");
 
         let mut packets = Vec::new();
-        let flush = self.encoder.flush();
 
-        for result in flush {
-            match result {
-                Ok((data, picture)) => {
+        // Take ownership of the encoder for flushing
+        let encoder = match self.encoder.take() {
+            Some(e) => e,
+            None => return Ok(packets), // Already flushed
+        };
+        let mut flush = encoder.flush();
+
+        loop {
+            match flush.next() {
+                Some(Ok((data, picture))) => {
                     if data.len() > 0 {
                         let nal_data = data.entirety().to_vec();
                         let is_keyframe = picture.keyframe();
@@ -204,10 +215,11 @@ impl VideoEncoder for X264Encoder {
                         });
                     }
                 }
-                Err(e) => {
-                    debug!("Flush iteration ended: {}", e);
+                Some(Err(e)) => {
+                    debug!("Flush iteration ended: {:?}", e);
                     break;
                 }
+                None => break,
             }
         }
 
@@ -229,3 +241,7 @@ impl Drop for X264Encoder {
         debug!("Closing x264 encoder");
     }
 }
+
+// SAFETY: x264::Encoder uses raw pointers internally but is designed for
+// single-threaded use. The encoder is only accessed from one thread at a time.
+unsafe impl Send for X264Encoder {}

@@ -8,6 +8,7 @@ use bytes::Bytes;
 use crossbeam_channel::Sender;
 use parking_lot::Mutex;
 use tracing::{debug, trace, warn};
+use windows::core::Interface;
 use windows::Foundation::TypedEventHandler;
 use windows::Graphics::Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem};
 use windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
@@ -196,7 +197,7 @@ impl FramePoolManager {
             },
             Usage: D3D11_USAGE_STAGING,
             BindFlags: Default::default(),
-            CPUAccessFlags: D3D11_CPU_ACCESS_READ,
+            CPUAccessFlags: D3D11_CPU_ACCESS_READ.0 as u32,
             MiscFlags: Default::default(),
         };
 
@@ -259,6 +260,7 @@ impl FramePoolManager {
     }
 
     /// Recreate the frame pool with a new size.
+    #[allow(dead_code)]
     pub fn recreate(&self, new_size: SizeInt32, device: &IDirect3DDevice) -> CaptureResult<()> {
         self.frame_pool.Recreate(
             device,

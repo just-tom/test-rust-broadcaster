@@ -1,12 +1,10 @@
 //! NVENC hardware video encoder.
 
 use bytes::Bytes;
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, instrument};
 
 use crate::error::EncoderError;
-use crate::{
-    EncodedVideoPacket, EncoderResult, FrameType, H264Profile, VideoEncoder, VideoEncoderConfig,
-};
+use crate::{EncodedVideoPacket, EncoderResult, FrameType, VideoEncoder, VideoEncoderConfig};
 
 // Conditional compilation for NVENC support
 #[cfg(all(windows, feature = "nvenc"))]
@@ -24,7 +22,7 @@ mod nvenc_impl {
             // Try to initialize the NVENC API
             match ENCODE_API.lock() {
                 Ok(_) => {
-                    info!("NVENC API available");
+                    tracing::info!("NVENC API available");
                     true
                 }
                 Err(e) => {
@@ -130,7 +128,7 @@ impl VideoEncoder for NvencEncoder {
             )));
         }
 
-        let is_keyframe = self.frame_count % self.keyframe_interval == 0;
+        let is_keyframe = self.frame_count.is_multiple_of(self.keyframe_interval);
         let frame_type = if is_keyframe {
             FrameType::I
         } else {

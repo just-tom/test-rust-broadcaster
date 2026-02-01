@@ -56,9 +56,20 @@ jobs:
       - name: Install pkg-config
         run: choco install pkgconfiglite -y
 
-      - name: Configure pkg-config for Rust
+      - name: Configure native dependencies
         run: |
           echo "PKG_CONFIG_PATH=C:\vcpkg\installed\x64-windows-static\lib\pkgconfig" >> $env:GITHUB_ENV
+          echo "X264_LIB_DIR=C:\vcpkg\installed\x64-windows-static\lib" >> $env:GITHUB_ENV
+          echo "X264_INCLUDE_DIR=C:\vcpkg\installed\x64-windows-static\include" >> $env:GITHUB_ENV
+          echo "FDK_AAC_LIB_DIR=C:\vcpkg\installed\x64-windows-static\lib" >> $env:GITHUB_ENV
+          echo "FDK_AAC_INCLUDE_DIR=C:\vcpkg\installed\x64-windows-static\include" >> $env:GITHUB_ENV
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+
+      - name: Verify vcpkg installation
+        run: |
+          ls C:\vcpkg\installed\x64-windows-static\lib\
+          ls C:\vcpkg\installed\x64-windows-static\lib\pkgconfig\ -ErrorAction SilentlyContinue
+          ls C:\vcpkg\installed\x64-windows-static\include\
 
       - name: Install frontend dependencies
         run: |

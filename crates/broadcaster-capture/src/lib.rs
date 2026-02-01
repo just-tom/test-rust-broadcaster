@@ -30,7 +30,7 @@ pub type CaptureResult<T> = Result<T, CaptureError>;
 
 /// Trait for capture sources.
 #[cfg(windows)]
-pub trait CaptureSource: Send + Sync {
+pub trait CaptureSource {
     /// Start capturing frames.
     fn start(&mut self) -> CaptureResult<Receiver<CapturedFrame>>;
 

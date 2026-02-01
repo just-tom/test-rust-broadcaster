@@ -44,7 +44,6 @@ impl AacEncoder {
             sample_rate: config.sample_rate,
             transport: fdk_aac::enc::Transport::Raw, // Raw AAC for RTMP
             channels: channel_mode,
-            audio_object_type: fdk_aac::enc::AudioObjectType::Mpeg4LowComplexity,
         };
 
         // Create the encoder
@@ -146,7 +145,7 @@ impl AudioEncoder for AacEncoder {
             // Pad with silence to reach a full frame
             let padding_needed = self.samples_per_frame - self.sample_buffer.len();
             self.sample_buffer
-                .extend(std::iter::repeat(0.0f32).take(padding_needed));
+                .extend(std::iter::repeat_n(0.0f32, padding_needed));
 
             let pcm_i16 = Self::f32_to_i16(&self.sample_buffer);
 

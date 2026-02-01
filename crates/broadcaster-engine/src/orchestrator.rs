@@ -12,8 +12,8 @@ use tracing::{debug, error, info, instrument, warn};
 use broadcaster_audio::enumerate_audio_devices;
 use broadcaster_capture::{enumerate_monitors, enumerate_windows};
 use broadcaster_ipc::{
-    AudioDevice, CaptureSource, EngineCommand, EngineEvent, EngineState, ShutdownPhase,
-    StartupPhase, StopReason, StreamConfig, StreamMetrics,
+    EngineCommand, EngineEvent, EngineState, ShutdownPhase, StartupPhase, StopReason,
+    StreamConfig, StreamMetrics,
 };
 
 use crate::metrics::MetricsCollector;
@@ -315,13 +315,12 @@ impl Drop for Engine {
 fn stream_loop(
     resources: Arc<ResourceManager>,
     metrics: Arc<MetricsCollector>,
-    state: Arc<RwLock<EngineState>>,
+    _state: Arc<RwLock<EngineState>>,
     should_stop: Arc<AtomicBool>,
 ) {
     debug!("Stream loop starting");
 
     let frame_interval = Duration::from_nanos(1_000_000_000 / 60); // 60 FPS
-    let mut last_frame_time = Instant::now();
 
     while !should_stop.load(Ordering::SeqCst) {
         let now = Instant::now();
@@ -358,25 +357,35 @@ fn stream_loop(
                 }
             }
 
-            // Process audio
-            if let Some(ref audio_rx) = res.audio_rx {
-                while let Ok(chunk) = audio_rx.try_recv() {
-                    if let Some(ref mut encoder) = res.audio_encoder {
-                        let samples = unsafe {
-                            std::slice::from_raw_parts(
-                                chunk.data.as_ptr() as *const f32,
-                                chunk.data.len() / std::mem::size_of::<f32>(),
-                            )
-                        };
+            // Process audio - collect chunks first to avoid borrow conflict
+            let audio_chunks: Vec<_> = res
+                .audio_rx
+                .as_ref()
+                .map(|rx| {
+                    let mut chunks = Vec::new();
+                    while let Ok(chunk) = rx.try_recv() {
+                        chunks.push(chunk);
+                    }
+                    chunks
+                })
+                .unwrap_or_default();
 
-                        match encoder.encode(samples, chunk.pts_100ns) {
-                            Ok(Some(packet)) => {
-                                metrics.record_bytes_sent(packet.data.len() as u64);
-                            }
-                            Ok(None) => {}
-                            Err(e) => {
-                                warn!("Audio encode error: {}", e);
-                            }
+            for chunk in audio_chunks {
+                if let Some(ref mut encoder) = res.audio_encoder {
+                    let samples = unsafe {
+                        std::slice::from_raw_parts(
+                            chunk.data.as_ptr() as *const f32,
+                            chunk.data.len() / std::mem::size_of::<f32>(),
+                        )
+                    };
+
+                    match encoder.encode(samples, chunk.pts_100ns) {
+                        Ok(Some(packet)) => {
+                            metrics.record_bytes_sent(packet.data.len() as u64);
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            warn!("Audio encode error: {}", e);
                         }
                     }
                 }
@@ -388,8 +397,6 @@ fn stream_loop(
         if elapsed < frame_interval {
             thread::sleep(frame_interval - elapsed);
         }
-
-        last_frame_time = now;
     }
 
     debug!("Stream loop stopped");

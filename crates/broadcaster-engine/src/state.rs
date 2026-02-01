@@ -1,7 +1,5 @@
 //! Resource management and initialization tracking.
 
-use std::sync::Arc;
-
 use crossbeam_channel::Receiver;
 use parking_lot::Mutex;
 use tracing::{debug, info, instrument, warn};
@@ -196,7 +194,7 @@ impl ResourceManager {
     }
 
     fn init_rtmp(&self, config: &StreamConfig) -> Result<(), String> {
-        let full_url = if config.rtmp_url.ends_with('/') {
+        let _full_url = if config.rtmp_url.ends_with('/') {
             format!("{}{}", config.rtmp_url, config.stream_key)
         } else {
             format!("{}/{}", config.rtmp_url, config.stream_key)

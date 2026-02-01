@@ -3,7 +3,7 @@
 use tracing::{debug, instrument};
 use windows::core::PCWSTR;
 use windows::Win32::Media::Audio::{
-    eAll, eCapture, eRender, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
+    eCapture, eConsole, eRender, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
     DEVICE_STATE_ACTIVE,
 };
 use windows::Win32::System::Com::{
@@ -62,7 +62,7 @@ fn enumerate_devices_by_type(device_type: AudioDeviceType) -> AudioResult<Vec<Au
     // Get default device ID for this type
     let default_id = unsafe {
         enumerator
-            .GetDefaultAudioEndpoint(data_flow, eAll)
+            .GetDefaultAudioEndpoint(data_flow, eConsole)
             .ok()
             .and_then(|device| device.GetId().ok())
             .map(|id| id.to_string().unwrap_or_default())
@@ -111,7 +111,6 @@ fn device_info(
 }
 
 fn get_device_name(device: &IMMDevice) -> AudioResult<String> {
-    use windows::Win32::System::Com::StructuredStorage::PropVariantClear;
     use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
 
     unsafe {
@@ -124,17 +123,17 @@ fn get_device_name(device: &IMMDevice) -> AudioResult<String> {
             pid: 14,
         };
 
-        let mut prop = store.GetValue(&key)?;
-        let name = if !prop.Anonymous.Anonymous.Anonymous.pwszVal.is_null() {
-            PCWSTR(prop.Anonymous.Anonymous.Anonymous.pwszVal)
-                .to_string()
-                .unwrap_or_else(|_| "Unknown".to_string())
-        } else {
-            "Unknown".to_string()
-        };
+        let prop = store.GetValue(&key)?;
 
-        PropVariantClear(&mut prop)?;
-        Ok(name)
+        // Try to extract string from PROPVARIANT
+        // The value is a VT_LPWSTR which we can read via to_string on the PROPVARIANT
+        let name = prop.to_string();
+
+        if name.is_empty() {
+            Ok("Unknown".to_string())
+        } else {
+            Ok(name)
+        }
     }
 }
 
@@ -168,7 +167,7 @@ pub fn get_default_device(device_type: AudioDeviceType) -> AudioResult<IMMDevice
 
     unsafe {
         enumerator
-            .GetDefaultAudioEndpoint(data_flow, eAll)
+            .GetDefaultAudioEndpoint(data_flow, eConsole)
             .map_err(|e| AudioError::WindowsApi {
                 message: "No default audio device".to_string(),
                 source: Some(e),

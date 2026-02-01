@@ -64,12 +64,7 @@ pub fn enumerate_windows() -> CaptureResult<Vec<WindowInfo>> {
         EnumWindows(
             Some(enum_window_callback),
             LPARAM(&mut windows as *mut Vec<WindowInfo> as isize),
-        )
-        .ok()
-        .map_err(|_| CaptureError::WindowsApi {
-            message: "Failed to enumerate windows".to_string(),
-            source: None,
-        })?;
+        )?;
     }
 
     debug!(count = windows.len(), "Enumerated windows");

@@ -6,14 +6,15 @@ use std::sync::Arc;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
 use tracing::{debug, info, instrument};
+use windows::core::Interface;
 use windows::Graphics::Capture::{GraphicsCaptureItem, GraphicsCaptureSession};
 use windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
 use windows::Win32::System::WinRT::Direct3D11::CreateDirect3D11DeviceFromDXGIDevice;
 
 use super::d3d11::D3D11Device;
 use super::frame_pool::FramePoolManager;
-use super::monitor::{find_monitor_by_id, MonitorInfo};
-use super::window::{find_window_by_id, WindowInfo};
+use super::monitor::find_monitor_by_id;
+use super::window::find_window_by_id;
 use crate::error::CaptureError;
 use crate::frame::CapturedFrame;
 use crate::{CaptureResult, CaptureSource, FRAME_CHANNEL_CAPACITY};
@@ -116,11 +117,8 @@ impl CaptureSource for CaptureSession {
             .frame_pool()
             .CreateCaptureSession(&item)?;
 
-        // Disable cursor capture for cleaner output
-        if let Ok(session2) = session.cast::<windows::Graphics::Capture::IGraphicsCaptureSession2>()
-        {
-            let _ = session2.SetIsCursorCaptureEnabled(false);
-        }
+        // Note: Cursor capture control requires IGraphicsCaptureSession3 on Windows 11+
+        // For now, we accept the default cursor behavior
 
         // Store components
         *self.frame_pool_manager.lock() = Some(frame_pool_manager.clone());
@@ -183,3 +181,9 @@ impl Drop for CaptureSession {
         let _ = self.stop();
     }
 }
+
+// SAFETY: CaptureSession contains Windows COM objects that use raw pointers.
+// The session is designed to be created and used on a single thread.
+// When moved to another thread, the caller must ensure proper synchronization.
+unsafe impl Send for CaptureSession {}
+unsafe impl Sync for CaptureSession {}

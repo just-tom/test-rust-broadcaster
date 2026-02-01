@@ -19,7 +19,7 @@ use broadcaster_ipc::AudioDeviceType;
 
 use crate::device::{find_device_by_id, get_default_device};
 use crate::error::AudioError;
-use crate::{AudioResult, AUDIO_CHANNEL_CAPACITY, CHANNELS, SAMPLES_PER_CHUNK, SAMPLE_RATE};
+use crate::{AudioResult, AUDIO_CHANNEL_CAPACITY, CHANNELS};
 
 /// An audio chunk captured from a device.
 #[derive(Debug, Clone)]
@@ -216,20 +216,17 @@ fn capture_thread(
     debug!("Audio capture started, entering capture loop");
 
     let sequence = AtomicU64::new(0);
-    let start_time = Instant::now();
+    let _start_time = Instant::now();
 
     // Capture loop
     while !should_stop.load(Ordering::SeqCst) {
         // Get available frames
-        let mut packet_length = 0u32;
-        unsafe {
-            if capture_client
-                .GetNextPacketSize(&mut packet_length)
-                .is_err()
-            {
-                break;
+        let packet_length = unsafe {
+            match capture_client.GetNextPacketSize() {
+                Ok(len) => len,
+                Err(_) => break,
             }
-        }
+        };
 
         if packet_length == 0 {
             thread::sleep(Duration::from_millis(5));

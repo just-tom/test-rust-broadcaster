@@ -2,22 +2,17 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Broadcaster",
   "version": "0.1.0",
-  "identifier": "com.broadcaster.app",
+  "identifier": "com.broadcaster.desktop",
   "build": {
-    "beforeDevCommand": "cd ui && npm run dev",
-    "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "cd ui && npm run build",
-    "frontendDist": "ui/dist"
+    "frontendDist": "./ui/dist"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Broadcaster",
-        "width": 480,
-        "height": 640,
-        "resizable": true,
-        "minWidth": 400,
-        "minHeight": 500
+        "width": 800,
+        "height": 600
       }
     ],
     "security": {
@@ -25,19 +20,5 @@
     }
   },
   "bundle": {
-    "active": true,
-    "targets": "all",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ],
-    "windows": {
-      "wix": {
-        "language": "en-US"
-      }
-    }
   }
 }

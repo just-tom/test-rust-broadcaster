@@ -47,7 +47,7 @@ pub enum AudioError {
 impl From<windows::core::Error> for AudioError {
     fn from(err: windows::core::Error) -> Self {
         Self::WindowsApi {
-            message: err.message().to_string_lossy(),
+            message: err.message().to_string(),
             source: Some(err),
         }
     }

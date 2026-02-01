@@ -51,7 +51,7 @@ pub enum CaptureError {
 impl From<windows::core::Error> for CaptureError {
     fn from(err: windows::core::Error) -> Self {
         Self::WindowsApi {
-            message: err.message().to_string_lossy(),
+            message: err.message().to_string(),
             source: Some(err),
         }
     }
