@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Broadcaster</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Broadcaster</h1>
+      <div id="status" class="status idle">Idle</div>
+    </header>
+
+    <main>
+      <!-- Capture Source -->
+      <section class="section">
+        <label for="capture-source">Capture Source</label>
+        <select id="capture-source">
+          <option value="">Select a source...</option>
+        </select>
+        <button id="refresh-sources" class="btn-icon" title="Refresh sources">&#x21bb;</button>
+      </section>
+
+      <!-- RTMP Settings -->
+      <section class="section">
+        <label for="rtmp-url">RTMP URL</label>
+        <input type="text" id="rtmp-url" placeholder="rtmp://live.twitch.tv/app" />
+      </section>
+
+      <section class="section">
+        <label for="stream-key">Stream Key</label>
+        <input type="password" id="stream-key" placeholder="Enter your stream key" />
+      </section>
+
+      <!-- Audio Controls -->
+      <section class="section audio-section">
+        <h3>Audio</h3>
+
+        <div class="audio-control">
+          <label>
+            <span class="audio-label">Microphone</span>
+            <select id="mic-device">
+              <option value="">No microphone</option>
+            </select>
+          </label>
+          <div class="volume-row">
+            <input type="range" id="mic-volume" min="0" max="100" value="100" />
+            <span id="mic-volume-value">100%</span>
+            <button id="mic-mute" class="btn-icon" title="Mute microphone">&#x1F50A;</button>
+          </div>
+        </div>
+
+        <div class="audio-control">
+          <label>
+            <span class="audio-label">System Audio</span>
+          </label>
+          <div class="volume-row">
+            <input type="range" id="system-volume" min="0" max="100" value="100" />
+            <span id="system-volume-value">100%</span>
+            <button id="system-mute" class="btn-icon" title="Mute system audio">&#x1F50A;</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Metrics -->
+      <section class="section metrics-section" id="metrics" style="display: none;">
+        <h3>Stream Info</h3>
+        <div class="metrics-grid">
+          <div class="metric">
+            <span class="metric-label">FPS</span>
+            <span class="metric-value" id="metric-fps">--</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Bitrate</span>
+            <span class="metric-value" id="metric-bitrate">--</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Dropped</span>
+            <span class="metric-value" id="metric-dropped">--</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Uptime</span>
+            <span class="metric-value" id="metric-uptime">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stream Control -->
+      <section class="section stream-control">
+        <button id="stream-btn" class="btn-primary">Go Live</button>
+      </section>
+    </main>
+
+    <footer>
+      <span id="encoder-info"></span>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

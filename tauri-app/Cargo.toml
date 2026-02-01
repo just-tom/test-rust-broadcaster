@@ -1,0 +1,25 @@
+[package]
+name = "broadcaster"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Windows live streaming broadcaster"
+
+[lib]
+name = "broadcaster_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+crossbeam-channel = { workspace = true }
+parking_lot = { workspace = true }
+broadcaster-engine = { workspace = true }
+broadcaster-ipc = { workspace = true }

@@ -1,0 +1,23 @@
+[package]
+name = "broadcaster-encoder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Video (NVENC/x264) and audio (AAC) encoding"
+
+[dependencies]
+crossbeam-channel = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+bytes = { workspace = true }
+parking_lot = { workspace = true }
+broadcaster-ipc = { workspace = true }
+
+[features]
+default = []
+nvenc = ["nvidia-video-codec-sdk"]
+
+[target.'cfg(windows)'.dependencies]
+x264 = { workspace = true }
+fdk-aac = { workspace = true }
+nvidia-video-codec-sdk = { workspace = true, optional = true }
