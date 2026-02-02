@@ -112,6 +112,11 @@ impl CaptureSource for CaptureSession {
             sender,
         )?;
 
+        // Update dimensions to match actual WGC capture size
+        let (actual_width, actual_height) = frame_pool_manager.dimensions();
+        self.width = actual_width;
+        self.height = actual_height;
+
         // Create capture session
         let session = frame_pool_manager
             .frame_pool()

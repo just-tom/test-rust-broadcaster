@@ -167,6 +167,11 @@ impl VideoEncoder for NvencEncoder {
     fn name(&self) -> &'static str {
         "NVENC"
     }
+
+    fn get_headers(&self) -> Option<bytes::Bytes> {
+        // TODO: When full NVENC support is implemented, extract headers from encoder
+        None
+    }
 }
 
 impl Drop for NvencEncoder {

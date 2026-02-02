@@ -5,14 +5,19 @@
 
 mod connection;
 mod error;
+mod nal;
 mod rtmp;
 
 pub use connection::{ConnectionState, ReconnectPolicy};
 pub use error::TransportError;
-pub use rtmp::RtmpClient;
+pub use nal::{
+    build_avc_decoder_config, build_flv_video_tag, extract_sps_pps, filter_parameter_sets,
+    nals_to_avcc, parse_annex_b, NalUnit, NalUnitType,
+};
+pub use rtmp::{RtmpClient, RtmpPacket};
 
 /// Channel capacity for outgoing packets.
-pub const PACKET_CHANNEL_CAPACITY: usize = 30;
+pub const PACKET_CHANNEL_CAPACITY: usize = 300;
 
 /// Result type for transport operations.
 pub type TransportResult<T> = Result<T, TransportError>;

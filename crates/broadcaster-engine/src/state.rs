@@ -11,7 +11,7 @@ use broadcaster_encoder::{
     VideoEncoderConfig,
 };
 use broadcaster_ipc::{StartupPhase, StreamConfig};
-use broadcaster_transport::RtmpClient;
+use broadcaster_transport::{RtmpClient, RtmpPacket};
 
 /// Resources that have been initialized during startup.
 #[derive(Default)]
@@ -34,6 +34,9 @@ pub struct InitializedResources {
 
     /// RTMP client.
     pub rtmp_client: Option<RtmpClient>,
+
+    /// RTMP packet sender for transmitting encoded data.
+    pub rtmp_packet_tx: Option<crossbeam_channel::Sender<RtmpPacket>>,
 
     /// Frame receiver from capture.
     pub frame_rx: Option<Receiver<CapturedFrame>>,
@@ -203,11 +206,13 @@ impl ResourceManager {
         let mut client = RtmpClient::new(config.rtmp_url.clone(), config.stream_key.clone())
             .map_err(|e| format!("RTMP client init failed: {}", e))?;
 
-        client
+        let packet_tx = client
             .connect()
             .map_err(|e| format!("RTMP connect failed: {}", e))?;
 
-        self.resources.lock().rtmp_client = Some(client);
+        let mut resources = self.resources.lock();
+        resources.rtmp_client = Some(client);
+        resources.rtmp_packet_tx = Some(packet_tx);
 
         debug!("RTMP connected");
         Ok(())
@@ -247,6 +252,7 @@ impl ResourceManager {
                 // Nothing to rollback
             }
             StartupPhase::ConnectRtmp => {
+                resources.rtmp_packet_tx = None;
                 if let Some(mut client) = resources.rtmp_client.take() {
                     let _ = client.disconnect();
                 }

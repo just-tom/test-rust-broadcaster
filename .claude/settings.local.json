@@ -38,7 +38,16 @@
       "Bash(cmd.exe /c 'del \"\"\\\\\\\\?\\\\C:\\\\Users\\\\Admin\\\\Desktop\\\\test-rust-broadcaster\\\\nul\"\"')",
       "Bash(powershell.exe -Command \"Remove-Item -LiteralPath ''\\\\?\\\\C:\\\\Users\\\\Admin\\\\Desktop\\\\test-rust-broadcaster\\\\nul'' -Force\")",
       "Bash(cmd.exe /c \"del /f \"\"\\\\?\\\\C:\\\\Users\\\\Admin\\\\Desktop\\\\test-rust-broadcaster\\\\nul\"\"\")",
-      "Bash(cmd.exe /c \"dir nul\")"
+      "Bash(cmd.exe /c \"dir nul\")",
+      "Bash(grep:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(git log:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(PKG_CONFIG_PATH=\"C:/vcpkg/installed/x64-windows/lib/pkgconfig\" cargo build:*)",
+      "Bash(findstr:*)",
+      "Bash(cargo test:*)"
     ]
   }
 }

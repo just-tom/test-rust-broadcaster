@@ -52,7 +52,63 @@ During installation, select:
 cargo install tauri-cli
 ```
 
-### 5. (Optional) NVIDIA GPU for Hardware Encoding
+### 5. Install Native Dependencies (x264, fdk-aac)
+
+The project requires native video/audio encoding libraries. Install them using vcpkg and Chocolatey:
+
+**Install vcpkg (C++ package manager):**
+```powershell
+# Clone vcpkg to C:\vcpkg (recommended location)
+git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+cd C:\vcpkg
+
+# Bootstrap vcpkg
+.\bootstrap-vcpkg.bat
+```
+
+**Install native libraries via vcpkg:**
+```powershell
+C:\vcpkg\vcpkg install x264:x64-windows-static fdk-aac:x64-windows-static
+```
+
+This will also automatically install LLVM/Clang (required for `bindgen` to generate Rust bindings).
+
+**Install pkg-config via Chocolatey:**
+```powershell
+# Install Chocolatey if you don't have it (run as Administrator)
+# See https://chocolatey.org/install
+
+# Install pkg-config-lite
+choco install pkgconfiglite
+```
+
+### 6. Configure Environment Variables
+
+The build system needs to know where to find the native libraries. Set these environment variables:
+
+**Per-session (PowerShell):**
+```powershell
+$env:PKG_CONFIG_PATH = "C:\vcpkg\installed\x64-windows-static\lib\pkgconfig"
+$env:X264_LIB_DIR = "C:\vcpkg\installed\x64-windows-static\lib"
+$env:X264_INCLUDE_DIR = "C:\vcpkg\installed\x64-windows-static\include"
+$env:FDK_AAC_LIB_DIR = "C:\vcpkg\installed\x64-windows-static\lib"
+$env:FDK_AAC_INCLUDE_DIR = "C:\vcpkg\installed\x64-windows-static\include"
+$env:LIBCLANG_PATH = "C:\vcpkg\installed\x64-windows-static\tools\llvm\bin"
+```
+
+**Permanent setup (run as Administrator):**
+```powershell
+[System.Environment]::SetEnvironmentVariable("PKG_CONFIG_PATH", "C:\vcpkg\installed\x64-windows-static\lib\pkgconfig", "User")
+[System.Environment]::SetEnvironmentVariable("X264_LIB_DIR", "C:\vcpkg\installed\x64-windows-static\lib", "User")
+[System.Environment]::SetEnvironmentVariable("X264_INCLUDE_DIR", "C:\vcpkg\installed\x64-windows-static\include", "User")
+[System.Environment]::SetEnvironmentVariable("FDK_AAC_LIB_DIR", "C:\vcpkg\installed\x64-windows-static\lib", "User")
+[System.Environment]::SetEnvironmentVariable("FDK_AAC_INCLUDE_DIR", "C:\vcpkg\installed\x64-windows-static\include", "User")
+[System.Environment]::SetEnvironmentVariable("LIBCLANG_PATH", "C:\vcpkg\installed\x64-windows-static\tools\llvm\bin", "User")
+```
+
+After setting permanent variables, restart your terminal for changes to take effect.
+
+### 7. (Optional) NVIDIA GPU for Hardware Encoding
 
 If you have an NVIDIA GPU and want hardware encoding:
 - Install latest NVIDIA drivers from https://www.nvidia.com/drivers
@@ -116,6 +172,88 @@ cargo tauri build
 The built application will be at:
 - `tauri-app/target/release/broadcaster.exe`
 - Installer: `tauri-app/target/release/bundle/msi/`
+
+## Debugging
+
+### Enabling Verbose Logging
+
+The application uses the `tracing` crate with the `RUST_LOG` environment variable to control log verbosity.
+
+**Log levels (from least to most verbose):** `error`, `warn`, `info`, `debug`, `trace`
+
+```powershell
+# Enable debug logging for all crates
+$env:RUST_LOG = "debug"
+
+# Enable trace logging (very verbose)
+$env:RUST_LOG = "trace"
+
+# Target specific crates
+$env:RUST_LOG = "broadcaster_engine=debug"
+$env:RUST_LOG = "broadcaster_engine=debug,broadcaster_capture=trace"
+
+# Run with logging enabled
+cargo tauri dev
+```
+
+### Viewing Logs
+
+Logs appear in the terminal where `cargo tauri dev` was run. The codebase uses these logging macros:
+
+- `error!` - Critical failures
+- `warn!` - Potential problems
+- `info!` - General status updates
+- `debug!` - Detailed debugging info
+- `trace!` - Very verbose, step-by-step execution
+
+### Enabling Backtraces
+
+When a panic occurs, enable backtraces to see the full call stack:
+
+```powershell
+# Basic backtrace
+$env:RUST_BACKTRACE = "1"
+
+# Full backtrace (includes all frames)
+$env:RUST_BACKTRACE = "full"
+
+# Example: run with both logging and backtrace
+$env:RUST_LOG = "debug"
+$env:RUST_BACKTRACE = "1"
+cargo tauri dev
+```
+
+### Quick Build Scripts
+
+The project includes PowerShell helper scripts in the root directory:
+
+| Script | Purpose |
+|--------|---------|
+| `run-check.ps1` | Fast compilation check without building |
+| `run-verbose.ps1` | Build with backtrace enabled |
+| `run-clippy.ps1` | Run linting and code quality checks |
+
+### Hot-Reloading Behavior
+
+- **UI changes** (HTML/CSS/JS in `tauri-app/ui/`) hot-reload automatically
+- **Rust changes** trigger automatic recompilation (slower, watch the terminal for progress)
+
+### Adding Debug Output
+
+To add temporary debug logging to investigate an issue:
+
+```rust
+use tracing::debug;
+
+// Log a simple message
+debug!("Reached this point in the code");
+
+// Log variables (use {:?} for Debug trait)
+debug!("my_variable = {:?}", my_variable);
+
+// Log with context
+debug!(frame_count = %count, "Processing frame");
+```
 
 ## Code Quality Commands
 

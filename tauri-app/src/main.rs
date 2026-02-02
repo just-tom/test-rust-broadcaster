@@ -14,12 +14,10 @@ use std::thread;
 use crossbeam_channel::{Receiver, Sender};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use tracing::{error, info};
+use tracing::{info};
 
 use broadcaster_engine::Engine;
-use broadcaster_ipc::{
-    AudioDevice, CaptureSource, EngineCommand, EngineEvent, EngineState, StreamConfig,
-};
+use broadcaster_ipc::{EngineCommand, EngineEvent, EngineState, StreamConfig};
 
 /// Application state shared across Tauri commands.
 struct AppState {
@@ -52,51 +50,25 @@ impl From<&str> for CommandError {
 type CommandResult<T> = Result<T, CommandError>;
 
 /// Get available capture sources (monitors and windows).
+/// This is a fire-and-forget command - sources arrive via poll_events.
 #[tauri::command]
-fn get_capture_sources(state: State<AppState>) -> CommandResult<Vec<CaptureSource>> {
+fn get_capture_sources(state: State<AppState>) -> CommandResult<()> {
     state
         .command_tx
         .send(EngineCommand::GetCaptureSources)
         .map_err(|e| CommandError::from(format!("Failed to send command: {}", e)))?;
-
-    // Wait for the response event
-    let rx = state.event_rx.lock().unwrap();
-    loop {
-        match rx.recv_timeout(std::time::Duration::from_secs(5)) {
-            Ok(EngineEvent::CaptureSources(sources)) => return Ok(sources),
-            Ok(_) => continue, // Skip other events
-            Err(e) => {
-                return Err(CommandError::from(format!(
-                    "Timeout waiting for capture sources: {}",
-                    e
-                )))
-            }
-        }
-    }
+    Ok(())
 }
 
 /// Get available audio devices.
+/// This is a fire-and-forget command - devices arrive via poll_events.
 #[tauri::command]
-fn get_audio_devices(state: State<AppState>) -> CommandResult<Vec<AudioDevice>> {
+fn get_audio_devices(state: State<AppState>) -> CommandResult<()> {
     state
         .command_tx
         .send(EngineCommand::GetAudioDevices)
         .map_err(|e| CommandError::from(format!("Failed to send command: {}", e)))?;
-
-    // Wait for the response event
-    let rx = state.event_rx.lock().unwrap();
-    loop {
-        match rx.recv_timeout(std::time::Duration::from_secs(5)) {
-            Ok(EngineEvent::AudioDevices(devices)) => return Ok(devices),
-            Ok(_) => continue, // Skip other events
-            Err(e) => {
-                return Err(CommandError::from(format!(
-                    "Timeout waiting for audio devices: {}",
-                    e
-                )))
-            }
-        }
-    }
+    Ok(())
 }
 
 /// Poll for events from the engine (non-blocking).

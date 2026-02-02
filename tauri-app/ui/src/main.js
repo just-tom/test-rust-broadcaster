@@ -1,4 +1,4 @@
-const { invoke } = window.__TAURI__.core;
+import { invoke } from '@tauri-apps/api/core';
 
 // Application state
 let state = {
@@ -55,10 +55,12 @@ function setupEventListeners() {
 // Refresh capture sources
 async function refreshSources() {
   try {
+    console.log('Requesting capture sources...');
     await invoke('get_capture_sources');
     await invoke('get_audio_devices');
+    // Sources will arrive via event polling
   } catch (e) {
-    console.error('Failed to refresh sources:', e);
+    console.error('Failed to request sources:', e);
   }
 }
 
@@ -66,8 +68,9 @@ async function refreshSources() {
 async function refreshAudioDevices() {
   try {
     await invoke('get_audio_devices');
+    // Devices will arrive via event polling
   } catch (e) {
-    console.error('Failed to refresh audio devices:', e);
+    console.error('Failed to request audio devices:', e);
   }
 }
 
@@ -223,6 +226,9 @@ function handleStateChange(engineState) {
   } else if (engineState.Live) {
     state.isLive = true;
     state.isStarting = false;
+  } else if (engineState.Stopping) {
+    state.isLive = false;
+    state.isStarting = false;
   } else if (engineState.Error) {
     state.isLive = false;
     state.isStarting = false;
@@ -313,13 +319,14 @@ function updateUI() {
     elements.streamBtn.textContent = 'Stop Stream';
     elements.streamBtn.classList.add('live');
   } else if (state.isStarting) {
-    elements.streamBtn.textContent = 'Starting...';
-    elements.streamBtn.disabled = true;
+    elements.streamBtn.textContent = 'Cancel';
+    elements.streamBtn.classList.remove('live');
   } else {
     elements.streamBtn.textContent = 'Go Live';
     elements.streamBtn.classList.remove('live');
-    elements.streamBtn.disabled = false;
   }
+  // Button is NEVER disabled - user can always stop/cancel
+  elements.streamBtn.disabled = false;
 
   // Show/hide metrics
   elements.metrics.style.display = state.isLive ? 'block' : 'none';

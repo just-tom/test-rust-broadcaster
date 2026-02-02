@@ -5,15 +5,20 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use bytes::Bytes;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use tracing::{debug, error, info, instrument, warn};
 
 use broadcaster_audio::enumerate_audio_devices;
-use broadcaster_capture::{enumerate_monitors, enumerate_windows};
+use broadcaster_capture::{enumerate_monitors, enumerate_windows, CapturedFrame};
 use broadcaster_ipc::{
-    EngineCommand, EngineEvent, EngineState, ShutdownPhase, StartupPhase, StopReason,
-    StreamConfig, StreamMetrics,
+    EngineCommand, EngineEvent, EngineState, ShutdownPhase, StartupPhase, StopReason, StreamConfig,
+    StreamMetrics,
+};
+use broadcaster_transport::{
+    build_avc_decoder_config, build_flv_video_tag, extract_sps_pps, filter_parameter_sets,
+    nals_to_avcc, parse_annex_b, RtmpPacket,
 };
 
 use crate::metrics::MetricsCollector;
@@ -156,10 +161,18 @@ impl Engine {
         let state = Arc::clone(&self.state);
         let should_stop = Arc::clone(&self.should_stop);
 
+        // Extract the RTMP packet sender
+        let packet_tx = resources
+            .resources()
+            .lock()
+            .rtmp_packet_tx
+            .clone()
+            .expect("RTMP packet sender should be initialized");
+
         should_stop.store(false, Ordering::SeqCst);
 
         let handle = thread::spawn(move || {
-            stream_loop(resources, metrics, state, should_stop);
+            stream_loop(resources, metrics, state, should_stop, packet_tx);
         });
 
         self.engine_thread = Some(handle);
@@ -317,47 +330,167 @@ fn stream_loop(
     metrics: Arc<MetricsCollector>,
     _state: Arc<RwLock<EngineState>>,
     should_stop: Arc<AtomicBool>,
+    packet_tx: crossbeam_channel::Sender<RtmpPacket>,
 ) {
     debug!("Stream loop starting");
 
     let frame_interval = Duration::from_nanos(1_000_000_000 / 60); // 60 FPS
+    let start_time = Instant::now();
+    let mut frames_received: u64 = 0;
+    let mut frames_encoded: u64 = 0;
+    let mut frames_sent: u64 = 0;
+    let mut frames_duplicated: u64 = 0;
+    let mut last_log_time = Instant::now();
+
+    // Store last frame for duplication when no new frame available
+    let mut last_frame: Option<CapturedFrame> = None;
+
+    // Track whether we've sent the AVC sequence header
+    let mut sequence_header_sent = false;
 
     while !should_stop.load(Ordering::SeqCst) {
-        let now = Instant::now();
+        let frame_start = Instant::now();
 
-        // Process video frame
+        // Periodic status logging every 5 seconds
+        if last_log_time.elapsed() >= Duration::from_secs(5) {
+            info!(
+                "Stream stats: received={}, encoded={}, sent={}, duplicated={}, uptime={:.1}s",
+                frames_received,
+                frames_encoded,
+                frames_sent,
+                frames_duplicated,
+                start_time.elapsed().as_secs_f32()
+            );
+            last_log_time = Instant::now();
+        }
+
+        // Determine which frame to encode (new or duplicated)
+        let frame_to_encode: Option<CapturedFrame>;
+
         {
-            let mut res = resources.resources().lock();
+            let res = resources.resources().lock();
 
-            // Get frame from capture
             if let Some(ref frame_rx) = res.frame_rx {
                 match frame_rx.try_recv() {
                     Ok(frame) => {
-                        // Encode frame
-                        if let Some(ref mut encoder) = res.video_encoder {
-                            match encoder.encode(&frame.data, frame.timestamp.pts_100ns) {
-                                Ok(Some(packet)) => {
-                                    // Send to RTMP
-                                    metrics.record_frame();
-                                    metrics.record_bytes_sent(packet.data.len() as u64);
-                                }
-                                Ok(None) => {}
-                                Err(e) => {
-                                    warn!("Encode error: {}", e);
-                                    metrics.record_encode_drop();
-                                }
-                            }
+                        frames_received += 1;
+                        if frames_received <= 5 || frames_received % 100 == 0 {
+                            debug!(
+                                "Frame received: #{}, size={}x{}",
+                                frames_received, frame.width, frame.height
+                            );
+                        }
+                        last_frame = Some(frame.clone());
+                        frame_to_encode = Some(frame);
+                    }
+                    Err(crossbeam_channel::TryRecvError::Empty) => {
+                        // No new frame - duplicate last frame to maintain constant FPS
+                        if let Some(ref frame) = last_frame {
+                            frame_to_encode = Some(frame.clone());
+                            frames_duplicated += 1;
+                        } else {
+                            frame_to_encode = None;
                         }
                     }
-                    Err(crossbeam_channel::TryRecvError::Empty) => {}
                     Err(crossbeam_channel::TryRecvError::Disconnected) => {
                         warn!("Frame channel disconnected");
                         break;
                     }
                 }
+            } else {
+                frame_to_encode = None;
             }
+        }
 
-            // Process audio - collect chunks first to avoid borrow conflict
+        // Encode and send frame
+        if let Some(frame) = frame_to_encode {
+            let mut res = resources.resources().lock();
+
+            // Use current stream time for PTS (not frame's original timestamp)
+            let pts_100ns = (start_time.elapsed().as_nanos() / 100) as u64;
+
+            if let Some(ref mut encoder) = res.video_encoder {
+                // Send AVC sequence header before first encoded frame
+                if !sequence_header_sent {
+                    if let Some(headers) = encoder.get_headers() {
+                        if let Some((sps, pps)) = extract_sps_pps(&headers) {
+                            if let Some(avc_config) = build_avc_decoder_config(&sps, &pps) {
+                                // Wrap in FLV video tag format
+                                let flv_data = build_flv_video_tag(&avc_config, true, true, 0);
+                                let seq_header_packet = RtmpPacket {
+                                    data: flv_data,
+                                    timestamp_ms: 0,
+                                    is_video: true,
+                                    is_keyframe: true,
+                                    is_sequence_header: true,
+                                };
+                                match packet_tx.try_send(seq_header_packet) {
+                                    Ok(()) => {
+                                        info!("Sent AVC sequence header");
+                                        sequence_header_sent = true;
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to send AVC sequence header: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                match encoder.encode(&frame.data, pts_100ns) {
+                    Ok(Some(packet)) => {
+                        frames_encoded += 1;
+
+                        // Parse Annex B NAL units from x264 output
+                        let nals = parse_annex_b(&packet.data);
+
+                        // Filter out SPS/PPS (already sent in sequence header)
+                        let filtered_nals = filter_parameter_sets(nals);
+
+                        if !filtered_nals.is_empty() {
+                            // Convert to AVCC format (4-byte length prefix)
+                            let avcc_data = nals_to_avcc(&filtered_nals);
+
+                            // Wrap in FLV video tag format
+                            let flv_data =
+                                build_flv_video_tag(&avcc_data, packet.is_keyframe, false, 0);
+
+                            let rtmp_packet = RtmpPacket {
+                                data: flv_data,
+                                timestamp_ms: start_time.elapsed().as_millis() as u32,
+                                is_video: true,
+                                is_keyframe: packet.is_keyframe,
+                                is_sequence_header: false,
+                            };
+                            match packet_tx.try_send(rtmp_packet) {
+                                Ok(()) => {
+                                    frames_sent += 1;
+                                    metrics.record_frame();
+                                    metrics.record_bytes_sent(packet.data.len() as u64);
+                                }
+                                Err(e) => {
+                                    warn!("Failed to send RTMP packet: {}", e);
+                                }
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        // Encoder buffering, no output yet
+                    }
+                    Err(e) => {
+                        warn!("Encode error: {}", e);
+                        metrics.record_encode_drop();
+                    }
+                }
+            }
+        }
+
+        // Process audio
+        {
+            let mut res = resources.resources().lock();
+
+            // Collect chunks first to avoid borrow conflict
             let audio_chunks: Vec<_> = res
                 .audio_rx
                 .as_ref()
@@ -381,7 +514,17 @@ fn stream_loop(
 
                     match encoder.encode(samples, chunk.pts_100ns) {
                         Ok(Some(packet)) => {
-                            metrics.record_bytes_sent(packet.data.len() as u64);
+                            // Convert to RTMP packet and send
+                            let rtmp_packet = RtmpPacket {
+                                data: Bytes::from(packet.data.clone()),
+                                timestamp_ms: start_time.elapsed().as_millis() as u32,
+                                is_video: false,
+                                is_keyframe: false,
+                                is_sequence_header: false,
+                            };
+                            if packet_tx.try_send(rtmp_packet).is_ok() {
+                                metrics.record_bytes_sent(packet.data.len() as u64);
+                            }
                         }
                         Ok(None) => {}
                         Err(e) => {
@@ -392,12 +535,15 @@ fn stream_loop(
             }
         }
 
-        // Rate limiting
-        let elapsed = now.elapsed();
+        // Rate limiting to target 60 FPS
+        let elapsed = frame_start.elapsed();
         if elapsed < frame_interval {
             thread::sleep(frame_interval - elapsed);
         }
     }
 
-    debug!("Stream loop stopped");
+    info!(
+        "Stream loop stopped: total received={}, encoded={}, sent={}, duplicated={}",
+        frames_received, frames_encoded, frames_sent, frames_duplicated
+    );
 }

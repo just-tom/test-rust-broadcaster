@@ -22,8 +22,8 @@ pub use wgc::window::enumerate_windows;
 #[cfg(windows)]
 use crossbeam_channel::Receiver;
 
-/// Channel capacity for captured frames.
-pub const FRAME_CHANNEL_CAPACITY: usize = 3;
+/// Channel capacity for captured frames (~0.5 second buffer at 60 fps).
+pub const FRAME_CHANNEL_CAPACITY: usize = 30;
 
 /// Result type for capture operations.
 pub type CaptureResult<T> = Result<T, CaptureError>;

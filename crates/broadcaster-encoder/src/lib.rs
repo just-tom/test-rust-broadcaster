@@ -149,6 +149,12 @@ pub trait VideoEncoder: Send {
 
     /// Get encoder name for diagnostics.
     fn name(&self) -> &'static str;
+
+    /// Get the SPS/PPS header data in Annex B format.
+    ///
+    /// This is needed to build the AVC decoder configuration record
+    /// (sequence header) for RTMP streaming.
+    fn get_headers(&self) -> Option<Bytes>;
 }
 
 /// Trait for audio encoders.

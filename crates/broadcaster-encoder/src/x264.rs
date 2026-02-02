@@ -15,8 +15,7 @@ pub struct X264Encoder {
     frame_count: u64,
     #[allow(dead_code)]
     keyframe_interval: u64,
-    /// Cached SPS/PPS header data.
-    #[allow(dead_code)]
+    /// Cached SPS/PPS header data in Annex B format.
     headers: Bytes,
 }
 
@@ -133,9 +132,10 @@ impl VideoEncoder for X264Encoder {
         let pts = (pts_100ns * self.config.fps as u64) / 10_000_000;
 
         // Encode the frame
-        let encoder = self.encoder.as_mut().ok_or_else(|| {
-            EncoderError::Encoding("Encoder has been flushed".to_string())
-        })?;
+        let encoder = self
+            .encoder
+            .as_mut()
+            .ok_or_else(|| EncoderError::Encoding("Encoder has been flushed".to_string()))?;
         let (data, picture) = encoder
             .encode(pts as i64, image)
             .map_err(|e| EncoderError::Encoding(format!("x264 encode failed: {:?}", e)))?;
@@ -232,6 +232,14 @@ impl VideoEncoder for X264Encoder {
 
     fn name(&self) -> &'static str {
         "x264"
+    }
+
+    fn get_headers(&self) -> Option<Bytes> {
+        if self.headers.is_empty() {
+            None
+        } else {
+            Some(self.headers.clone())
+        }
     }
 }
 

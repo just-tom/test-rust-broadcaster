@@ -99,6 +99,11 @@ impl FramePoolManager {
         self.is_active.store(active, Ordering::SeqCst);
     }
 
+    /// Get the actual capture dimensions from WGC.
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
     /// Handle a frame arrival.
     fn on_frame_arrived(&self, pool: &Direct3D11CaptureFramePool) -> CaptureResult<()> {
         if !self.is_active.load(Ordering::SeqCst) {
@@ -120,9 +125,14 @@ impl FramePoolManager {
 
         // Try to send, drop if channel is full (backpressure)
         match self.frame_sender.try_send(captured_frame) {
-            Ok(()) => {}
+            Ok(()) => {
+                debug!(
+                    "Captured frame #{}: {}x{}",
+                    sequence, self.width, self.height
+                );
+            }
             Err(crossbeam_channel::TrySendError::Full(_)) => {
-                trace!("Frame channel full, dropping frame");
+                debug!("Frame channel full, dropping frame #{}", sequence);
             }
             Err(crossbeam_channel::TrySendError::Disconnected(_)) => {
                 return Err(CaptureError::ChannelDisconnected);

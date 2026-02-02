@@ -15,6 +15,7 @@ use rml_rtmp::time::RtmpTimestamp;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
+use tokio::sync::oneshot;
 use tracing::{debug, error, info, instrument, trace, warn};
 use url::Url;
 
@@ -25,7 +26,7 @@ use crate::{TransportResult, PACKET_CHANNEL_CAPACITY};
 /// A packet to send over RTMP.
 #[derive(Debug, Clone)]
 pub struct RtmpPacket {
-    /// Packet data.
+    /// Packet data (should be FLV-formatted for video).
     pub data: Bytes,
 
     /// Presentation timestamp in milliseconds.
@@ -36,6 +37,10 @@ pub struct RtmpPacket {
 
     /// Whether this is a keyframe (for video).
     pub is_keyframe: bool,
+
+    /// Whether this is an AVC sequence header (decoder configuration).
+    /// Sequence headers must be sent before any video frames.
+    pub is_sequence_header: bool,
 }
 
 /// RTMP client for streaming.
@@ -108,6 +113,9 @@ impl RtmpClient {
         let packets_sent_clone = Arc::clone(&packets_sent);
         let packets_dropped_clone = Arc::clone(&packets_dropped);
 
+        // Create channel to receive initial connection result
+        let (init_tx, init_rx) = oneshot::channel::<Result<(), TransportError>>();
+
         // Spawn connection task
         runtime.spawn(async move {
             if let Err(e) = run_rtmp_connection(
@@ -120,6 +128,7 @@ impl RtmpClient {
                 bytes_sent_clone,
                 packets_sent_clone,
                 packets_dropped_clone,
+                Some(init_tx),
             )
             .await
             {
@@ -127,10 +136,32 @@ impl RtmpClient {
             }
         });
 
-        self.runtime = Some(runtime);
-        self.packet_sender = Some(sender.clone());
-
-        Ok(sender)
+        // Block until initial connection completes
+        match init_rx.blocking_recv() {
+            Ok(Ok(())) => {
+                self.runtime = Some(runtime);
+                self.packet_sender = Some(sender.clone());
+                Ok(sender)
+            }
+            Ok(Err(e)) => {
+                // Shutdown runtime on failure
+                runtime.shutdown_timeout(Duration::from_secs(1));
+                *self.state.write() = ConnectionState::Failed {
+                    reason: e.to_string(),
+                };
+                Err(e)
+            }
+            Err(_) => {
+                // Channel was dropped without sending - connection task died
+                runtime.shutdown_timeout(Duration::from_secs(1));
+                *self.state.write() = ConnectionState::Failed {
+                    reason: "Connection task died unexpectedly".to_string(),
+                };
+                Err(TransportError::Connection(
+                    "Connection task died unexpectedly".into(),
+                ))
+            }
+        }
     }
 
     /// Disconnect from the RTMP server.
@@ -199,8 +230,11 @@ async fn run_rtmp_connection(
     bytes_sent: Arc<AtomicU64>,
     packets_sent: Arc<AtomicU64>,
     packets_dropped: Arc<AtomicU64>,
+    init_signal: Option<oneshot::Sender<Result<(), TransportError>>>,
 ) -> TransportResult<()> {
     let mut attempt = 0u32;
+    let mut init_signal = init_signal;
+    let mut signaled = false;
 
     loop {
         if should_stop.load(Ordering::SeqCst) {
@@ -212,6 +246,14 @@ async fn run_rtmp_connection(
             Ok(mut connection) => {
                 *state.write() = ConnectionState::Connected;
                 attempt = 0;
+
+                // Signal success on first connection
+                if !signaled {
+                    if let Some(tx) = init_signal.take() {
+                        let _ = tx.send(Ok(()));
+                    }
+                    signaled = true;
+                }
 
                 info!("RTMP connection established");
 
@@ -244,6 +286,13 @@ async fn run_rtmp_connection(
                 attempt += 1;
 
                 if !policy.should_retry(attempt) {
+                    // Signal failure if haven't connected yet
+                    if !signaled {
+                        if let Some(tx) = init_signal.take() {
+                            let _ = tx.send(Err(TransportError::ReconnectExhausted(attempt)));
+                        }
+                    }
+
                     *state.write() = ConnectionState::Failed {
                         reason: format!("Failed after {} attempts: {}", attempt, e),
                     };
@@ -365,7 +414,8 @@ async fn connect_rtmp(url: &str, stream_key: &str) -> TransportResult<RtmpConnec
     debug!("Handshake complete, creating RTMP session");
 
     // Create RTMP client session
-    let config = ClientSessionConfig::new();
+    let mut config = ClientSessionConfig::new();
+    config.tc_url = Some(url.to_string()); // Set tcUrl to the full RTMP URL for server compatibility
     let (mut session, initial_results) = ClientSession::new(config)
         .map_err(|e| TransportError::Connection(format!("Session creation failed: {:?}", e)))?;
 
@@ -537,7 +587,7 @@ async fn send_packet(connection: &mut RtmpConnection, packet: &RtmpPacket) -> Tr
         connection.session.publish_video_data(
             packet.data.clone(),
             timestamp,
-            !packet.is_keyframe, // can_be_dropped: true for non-keyframes
+            false, // can_be_dropped: never drop frames for reliable streaming
         )
     } else {
         connection.session.publish_audio_data(
